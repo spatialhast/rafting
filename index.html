@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Rafting</title>
+    <link rel="stylesheet" href="assets/leaflet-0.7.5/leaflet.css" />
+    <link rel="stylesheet" href="assets/leaflet.markercluster/MarkerCluster.css" />
+    <link rel="stylesheet" href="assets/leaflet.photo/Leaflet.Photo.css" />
+    <link rel="stylesheet" href="assets/font-awesome-4.4.0/css/font-awesome.min.css" />
+
+    <style>
+        html,
+        body,
+        #map {
+            margin: 0;
+            height: 100%;
+            background: #fff;
+        }
+        
+        .leaflet-popup-photo a.leaflet-popup-close-button {
+            top: -13px;
+            right: -13px;
+            background-color: #fff;
+            padding: 5px;
+            border-radius: 12px;
+            width: 15px;
+            height: 15px;
+            box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+            color: #555;
+        }
+        
+        .leaflet-popup-photo a.leaflet-popup-close-button:hover {
+            color: #333;
+            background-color: #eee;
+        }
+        
+        .leaflet-popup-photo .leaflet-popup-content-wrapper {
+            padding: 6px;
+            border-radius: 4px;
+        }
+        
+        .leaflet-popup-photo .leaflet-popup-content {
+            margin: 0;
+        }
+        
+        .leaflet-popup-photo .leaflet-popup-tip {
+            background: white;
+        }
+        
+        .leaflet-popup-photo img,
+        .leaflet-popup-photo video {
+            display: block;
+            width: 100%;
+        }
+        
+        .leaflet-popup-photo p {
+            margin: 5px 0 0 0;
+        }
+        
+        .leaflet-bar a {
+            background-color: #fff;
+            border-bottom: 1px solid #ccc;
+            /* border-bottom-color: rgb(204, 204, 204); */
+            color: #444;
+            display: block;
+            height: 26px;
+            width: 26px;
+            line-height: 1.45 !important;
+            text-align: center;
+            text-decoration: none;
+            font: bold 18px'Lucida Console', Monaco, monospace;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <script src="assets/jquery-1.11.3.min.js"></script>
+    <script src="assets/leaflet-0.7.5/leaflet.js"></script>
+    <script src="assets/leaflet.markercluster/leaflet.markercluster.js"></script>
+    <script src="assets/leaflet.photo/Leaflet.Photo.js"></script>
+    <script>
+        // add OpenStreetMap layer
+        var layerOSM = new L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '&copy; Map Data <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        // add MapBoxImagery layer
+        var layerMapBoxImagery = new L.tileLayer('http://{s}.tiles.mapbox.com/v4/openstreetmap.map-inh7ifmo/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoib3BlbnN0cmVldG1hcCIsImEiOiJhNVlHd29ZIn0.ti6wATGDWOmCnCYen-Ip7Q', {
+            maxZoom: 17,
+            attribution: 'Data &copy; <a href="http://www.openstreetmap.org/copyright/en">OSM</a> contributors (ODbL), rendering ' +
+                '<a href="http://giscience.uni-hd.de/" target="_blank">GIScience Research Group @ University of Heidelberg</a>'
+        });
+
+        var map = new L.Map('map', {
+            minZoom: 7,
+            maxZoom: 17,
+            zoomControl: false,			
+            layers: [layerMapBoxImagery]
+
+        });
+
+        map.setView([48.0158, 30.9579], 14);
+        var lat = 48.0158,
+            lng = 30.9579,
+            zoom = 14;
+
+        var baseMaps = {
+            "MapBox Imagery": layerMapBoxImagery,
+            "OpenStreetMap": layerOSM
+        };
+        L.control.layers(baseMaps, null, {
+            collapsed: false
+        }).addTo(map);
+
+
+        // custom zoom bar control that includes a Zoom Home function
+        L.Control.zoomHome = L.Control.extend({
+            options: {
+                position: 'topleft',
+                zoomInText: '+',
+                zoomInTitle: 'Zoom in',
+                zoomOutText: '-',
+                zoomOutTitle: 'Zoom out',
+                zoomHomeText: '<i class="fa fa-home" style="line-height:1.65;"></i>',
+                zoomHomeTitle: 'Zoom home'
+            },
+
+            onAdd: function(map) {
+                var controlName = 'gin-control-zoom',
+                    container = L.DomUtil.create('div', controlName + ' leaflet-bar'),
+                    options = this.options;
+
+                this._zoomInButton = this._createButton(options.zoomInText, options.zoomInTitle,
+                    controlName + '-in', container, this._zoomIn);
+                this._zoomHomeButton = this._createButton(options.zoomHomeText, options.zoomHomeTitle,
+                    controlName + '-home', container, this._zoomHome);
+                this._zoomOutButton = this._createButton(options.zoomOutText, options.zoomOutTitle,
+                    controlName + '-out', container, this._zoomOut);
+
+                this._updateDisabled();
+                map.on('zoomend zoomlevelschange', this._updateDisabled, this);
+
+                return container;
+            },
+
+            onRemove: function(map) {
+                map.off('zoomend zoomlevelschange', this._updateDisabled, this);
+            },
+
+            _zoomIn: function(e) {
+                this._map.zoomIn(e.shiftKey ? 3 : 1);
+            },
+
+            _zoomOut: function(e) {
+                this._map.zoomOut(e.shiftKey ? 3 : 1);
+            },
+
+            _zoomHome: function(e) {
+                map.setView([lat, lng], zoom);
+            },
+
+            _createButton: function(html, title, className, container, fn) {
+                var link = L.DomUtil.create('a', className, container);
+                link.innerHTML = html;
+                link.href = '#';
+                link.title = title;
+
+                L.DomEvent.on(link, 'mousedown dblclick', L.DomEvent.stopPropagation)
+                    .on(link, 'click', L.DomEvent.stop)
+                    .on(link, 'click', fn, this)
+                    .on(link, 'click', this._refocusOnMap, this);
+
+                return link;
+            },
+
+            _updateDisabled: function() {
+                var map = this._map,
+                    className = 'leaflet-disabled';
+
+                L.DomUtil.removeClass(this._zoomInButton, className);
+                L.DomUtil.removeClass(this._zoomOutButton, className);
+
+                if (map._zoom === map.getMinZoom()) {
+                    L.DomUtil.addClass(this._zoomOutButton, className);
+                }
+                if (map._zoom === map.getMaxZoom()) {
+                    L.DomUtil.addClass(this._zoomInButton, className);
+                }
+            }
+        });
+        // add the new control to the map
+        var zoomHome = new L.Control.zoomHome();
+        zoomHome.addTo(map);
+
+
+        // add route layer		
+        var route = L.geoJson(null, {
+            style: function(feature) {
+                if (feature.properties.name === "route 1") {
+                    return {
+                        color: "#009B2E",
+                        weight: 5,
+                        opacity: 1
+                    };
+                }
+                if (feature.properties.name === "route 2") {
+                    return {
+                        color: "#4800FF",
+                        weight: 5,
+                        opacity: 1
+                    };
+                }
+                if (feature.properties.name === "route 3") {
+                    return {
+                        color: "#FF3135",
+                        weight: 5,
+                        opacity: 1
+                    };
+                }
+            }
+        });
+        $.getJSON("data/route.geojson", function(data) {
+            route.addData(data);
+        });
+        route.addTo(map);
+
+        var photoLayer = L.photo.cluster().on('click', function(evt) {
+            var photo = evt.layer.photo;
+            var template = '<img src="{url}" width="640" height="340" /></a><p>{caption}</p>';
+            var minWidth = 480;
+
+            if (photo.orient == 'l') {
+                template = '<img src="{url}" width="355" height="500" /></a><p>{caption}</p>';
+                minWidth = 355;
+            }
+
+
+            if (photo.video && (!!document.createElement('video').canPlayType('video/mp4; codecs=avc1.42E01E,mp4a.40.2'))) {
+                template = '<video controls poster="{url}" width="640" height="340"><source src="{video}" type="video/mp4"/></video>';
+            };
+
+            //map.setView([evt.latlng.lat, evt.latlng.lng], map.getZoom());
+
+            evt.layer.bindPopup(L.Util.template(template, photo), {
+                className: 'leaflet-popup-photo',
+                minWidth: minWidth
+            }).openPopup();
+
+        });
+
+        $.getJSON("data/markers.geojson", function(data) {
+            var markers = [];
+            $.each(data.features, function(key, val) {
+                markers.push(val.properties);
+            });
+            photoLayer.add(markers).addTo(map);
+        });
+
+
+        /*
+        // Get MapZoom an MapCenter: map.setView([49.8376, 23.9761], 13);   
+        map.on('moveend ', function(e) {   
+        console.log("map.setView([" + map.getCenter().lat.toFixed(4) + ", " + map.getCenter().lng.toFixed(4) + "], " + map.getZoom() + ");");   
+        });    
+        */
+
+        /*
+        // Get MapBounds: [[49.7405,23.6858],[49.9550,24.3450]]
+        map.on('moveend ', function(e) {
+        console.log("[[" + map.getBounds()._southWest.lat.toFixed(4) + "," + map.getBounds()._southWest.lng.toFixed(4) + "],[" + map.getBounds()._northEast.lat.toFixed(4) + "," + map.getBounds()._northEast.lng.toFixed(4) + "]]");
+        });
+        */
+    </script>
+
+    <!-- add LiveReload function -->
+    <!--script>
+        document.write('<script src="http://' + (location.host || 'localhost')
+            .split(':')[0] + ':35729/livereload.js?snipver=1"></' + 'script>')
+    </script-->
+
+</body>
+
+</html>
